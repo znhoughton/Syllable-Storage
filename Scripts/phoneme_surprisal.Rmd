@@ -1,0 +1,74 @@
+---
+title: "phoneme-surprisal-metrics"
+author: "Zachary Houghton"
+date: "2023-12-19"
+output: html_document
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Phoneme Surprisal Metrics
+
+The point of this Rscript is to come up with two metrics for the syllable experiment. The first metric we need is the syllable surprisal for each of our words.
+
+We can calculate phoneme surprisal as the negative log probability of the phoneme given the preceding context, or in mathematical terms:
+
+$$
+surprisal_i=-log(\frac{count(cohort_i)}{count(cohort_{i-1})})
+$$
+
+Following @gillis2021 we excluded this calculation for the initial phoneme. We used the CMU Pronunciation dictionary for English.
+
+```{python}
+#surprisal of cat should be the number of words containing cat divided by the number of words that contain ca
+count = 0
+import nltk
+import collections
+#nltk.download()
+arpabet = nltk.corpus.cmudict.dict()
+#any(key.startswith('[Z]') for key in arpabet)
+
+def get_phoneme_surprisal(word, translate_to_arpabet = True):
+    phoneme_surprisal = []
+    
+    #for inner_list in arpabet.values(): 
+      #if inner_list[0][0] == phoneme:
+        #count += 1
+    
+    #count = sum(1 for inner_list in arpabet.values() if inner_list[0][0] == phoneme)
+    
+    if translate_to_arpabet:
+      word_arpabet = arpabet[word]
+    else:
+      word_arpabet = word
+      #word_i_minus_one = word[-1]
+    word_arpabet = word_arpabet[0]
+    for index,phoneme in enumerate(word_arpabet):
+      if index == 0:
+        count = sum(1 for inner_list in arpabet.values() if inner_list[0][0] == phoneme)
+        dictionary_size = len(arpabet)
+        phoneme_surprisal.extend([count, dictionary_size])
+        
+      else:
+        cohorti = word_arpabet[0:index+1]
+        cohorti_minus_one = word_arpabet[0:index]
+        
+        cohorti_num = sum(1 for inner_list in arpabet.values() if inner_list[0][:len(cohorti)] == cohorti)
+        cohorti_minus_one_num = sum(1 for inner_list in arpabet.values() if inner_list[0][:len(cohorti_minus_one)] == cohorti_minus_one)
+        phoneme_surprisal.extend([cohorti_num, cohorti_minus_one_num])
+   
+   
+   
+   
+   
+   
+   
+    return phoneme_surprisal
+
+test = get_phoneme_surprisal('cat')        
+print(test)
+```
