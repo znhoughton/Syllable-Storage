@@ -170,7 +170,7 @@ def get_phoneme_surprisal_and_syllable_counts_for_stimuli():
     
     for row in corpus_reader:
       word = row[0].lower()
-      print(word)
+      #print(word) #for diagnosing any issues
       
       try:
         phoneme_surprisal = get_phoneme_surprisal(word)
