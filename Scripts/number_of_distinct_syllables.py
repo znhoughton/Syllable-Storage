@@ -100,3 +100,20 @@ print(f'number of unique syllables in Korean from corpus: %s' % len(KAIST_number
 
 
 ### let's double check the number for Korean using a pronounciation dictionary:
+
+
+def specific_syllable_count_english(cvc_syllable, translate_to_arpabet = True):
+    #eng_syllables = set()
+    with open('D:/PhD Stuff/Linguistics Stuff/Syallable Storage feat. Santiago/cmudict.rep', 'r') as corpusfile:
+        corpus_reader = csv.reader(corpusfile, delimiter = '\t', skipinitialspace=True, quotechar="\x07") #had to choose a strange quotechar so that python would ignore single and double quotes and stop escaping them                 
+        for line in corpus_reader:
+            if line[0].startswith('#'):
+                continue
+            syllables = line[0].split(' ', 1)
+            syllables = syllables[1:]
+            syllables = syllables[0].split('-')
+            for syllable in syllables:
+                syllable = syllable.strip()
+                eng_syllables.add(syllable)
+    return eng_syllables
+                

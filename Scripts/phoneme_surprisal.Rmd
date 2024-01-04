@@ -8,6 +8,7 @@ bibliography: references.bib
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
 library(tidyverse)
 
 ```
@@ -22,18 +23,21 @@ $$
 surprisal_i=-log(\frac{count(cohort_i)}{count(cohort_{i-1})})
 $$
 
-Following @gillis2021 we excluded this calculation for the initial phoneme. We used the CMU Pronunciation dictionary for English.
+Whie @gillis2021 excluded this calculation for the initial phoneme, we do calculate it for the initial phoneme, with the calculation equaling the number of words starting with the phoneme divided by the total number of words in the dictionary. We used the CMU Pronunciation dictionary for English.
+
+<!--# To-do: right now, we are ignoring the other pronunciations for words with multiple pronunciation entries. We need to fix this at some point. See: https://stackoverflow.com/questions/59166664/cmudict-dict-vs-cmudict-entries-python3-nltk -->
 
 ```{python}
 #surprisal of cat should be the number of words containing cat divided by the number of words that contain ca
-count = 0
+#count = 0
 import nltk
 import collections
 #nltk.download()
 arpabet = nltk.corpus.cmudict.dict()
 #any(key.startswith('[Z]') for key in arpabet)
 
-def get_phoneme_surprisal(word, translate_to_arpabet = True):
+def get_phoneme_surprisal(word, translate_to_arpabet = True): #IMPORTANT NOTE!!
+                                                    #THIS WILL BREAK FOR NON CVC SYLLABLE WORDS
     phoneme_surprisal = []
     
     #for inner_list in arpabet.values(): 
@@ -44,10 +48,11 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True):
     
     if translate_to_arpabet:
       word_arpabet = arpabet[word]
+      word_arpabet = word_arpabet[0]
     else:
       word_arpabet = word
       #word_i_minus_one = word[-1]
-    word_arpabet = word_arpabet[0]
+    
     for index,phoneme in enumerate(word_arpabet):
       if index == 0:
         count = sum(1 for inner_list in arpabet.values() if inner_list[0][0] == phoneme)
@@ -66,10 +71,146 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True):
    
    
    
-   
-   
-    return phoneme_surprisal
+    phoneme1_surprisal = phoneme_surprisal[0] / phoneme_surprisal[1]
+    phoneme2_surprisal = phoneme_surprisal[2] / phoneme_surprisal[3]
+    phoneme3_surprisal = phoneme_surprisal[4] / phoneme_surprisal[5]
+    
+    return [phoneme1_surprisal, phoneme2_surprisal, phoneme3_surprisal] #these are not logged, we'll do that later
 
 test = get_phoneme_surprisal('cat')        
 print(test)
+```
+
+## Syllable Counts
+
+Now let's get syllable frequency (number of times target syllable occurs in words). We'll start with a simple approximation that ignores syllable boundaries, and then we'll try to refine it so that we don't include counts of sound sequences that cross syllable boundaries.
+
+We'll operationalize syllable frequency per below:
+
+$$
+Syllable Frequency = \frac{count(Syllable)}{Dictionary Size}
+$$
+
+Where count(syllable) is equal to the number of words that contain the target syllable and dict.size is equal to the number of words in our dictionary.
+
+```{python}
+#count = 0
+import nltk
+import collections
+#nltk.download()
+arpabet = nltk.corpus.cmudict.dict()
+
+def get_syllable_frequency(cvc_syllable, translate_to_arpabet = True): #this won't work for words, it's only for CVC syllables. If we wanted to expand this to words, we would need to split the word into separate syllables and run this function on each syllable. Note that the part of the script that translates the word to arpabet would have to change if we did this though, since not all syllables are guaranteed to be words, and currently this function gets the arpabet of a syllable by looking it up. For nonce syllables, we'll have to provide the ARPABET pronunciation and set the parameter `translate_to_arpabet` to False.
+  
+  if translate_to_arpabet:
+      word_arpabet = arpabet[cvc_syllable][0] #while we're calling this word_arpabet, technically this function can only be used with CVC syllables.
+      
+  else:
+    word_arpabet = cvc_syllable
+      #word_i_minus_one = word[-1]
+      
+  word_arpabet = " ".join(word_arpabet)
+  count_syllable = sum(1 for inner_list in arpabet.values() if word_arpabet in " ".join(inner_list[0])) 
+  dictionary_size = len(arpabet)
+
+  return [count_syllable, dictionary_size, count_syllable / dictionary_size]
+
+get_syllable_frequency('cat')
+```
+
+Now let's take syllable boundaries into account so that we ignore "scatter" as containing the syllable "cat".
+
+```{python}
+import csv
+#there are a few primary differences in this function:
+  #first, it doesn't consider words like "scatter" as containing the syllable "cat". It also would also increase the syllable count by, e.g., two, if a word contains the syllable twice.
+def specific_syllable_count_english(cvc_syllable, translate_to_arpabet = True):
+
+  count = 0
+  dict_size = 0
+  if translate_to_arpabet:
+      word_arpabet = arpabet[cvc_syllable] #while we're calling this word_arpabet, technically this function can only be used with CVC syllables.
+      word_arpabet = word_arpabet[0]
+    
+      
+  else:
+    word_arpabet = cvc_syllable
+      #word_i_minus_one = word[-1]
+  
+    #eng_syllables = set()
+  with open('../Data/Syllable-Counts/cmudict.rep', 'r') as corpusfile: #this is a cmudict with syllable boundaries.
+    corpus_reader = csv.reader(corpusfile, delimiter = '\t', skipinitialspace=True, quotechar="\x07") #had to choose a strange quotechar so that python would ignore single and double quotes and stop escaping them                 
+    for line in corpus_reader:
+      if line[0].startswith('#'):
+        continue
+      dict_size += 1
+      syllables = line[0].split(' ', 1)
+      syllables = syllables[1:]
+      syllables = syllables[0].split('-')
+      for syllable in syllables:
+        syllable = syllable.strip()
+        if syllable == " ".join(word_arpabet):
+          count += 1
+  return [count, dict_size, count / dict_size]
+  
+specific_syllable_count_english('cat')
+```
+
+Let's test the correlation between phoneme surprisal and syllable frequency for 30 words:
+
+```{python}
+import csv
+import pandas as pd
+
+def get_phoneme_surprisal_and_syllable_counts_for_stimuli():
+  word_statistics = {} #our dictionary
+  with open('../Data/Syllable-Counts/Stimuli.csv', 'r') as corpusfile:
+    corpus_reader = csv.reader(corpusfile, delimiter = ',', skipinitialspace=True)
+    next(corpus_reader)
+    
+    for row in corpus_reader:
+      word = row[0].lower()
+      #print(word) #for diagnosing any issues
+      
+      try:
+        phoneme_surprisal = get_phoneme_surprisal(word)
+      except KeyError:
+        phoneme_surprisal = ['NoKey', 'NoKey', 'NoKey']
+      
+      try:
+        syllable_freq = specific_syllable_count_english(word)
+      except KeyError:
+        syllable_freq = ['NoKey', 'NoKey', 'NoKey']
+      word_statistics[word] = phoneme_surprisal + syllable_freq
+    
+  return(word_statistics)
+    
+
+
+get_phoneme_surprisal('vow')
+
+stimuli_statistics = get_phoneme_surprisal_and_syllable_counts_for_stimuli()
+
+column_names = ['phoneme1_surprisal', 'phoneme2_surprisal', 'phoneme3_surprisal', 'syllable_count', 'dictionary_size', 'syllable_freq']
+df = pd.DataFrame.from_dict(stimuli_statistics, orient = 'index', columns = column_names)
+
+
+```
+
+```{r}
+library(reticulate)
+stimuli_stats = py$df
+
+stimuli_stats = stimuli_stats %>%
+  mutate_all(as.numeric)
+
+stimuli_stats = stimuli_stats %>%
+  mutate(average_phoneme_surprisal = (log(phoneme1_surprisal) + log(phoneme2_surprisal) + log(phoneme3_surprisal))) %>%
+  mutate(syllable_freq = log(syllable_freq)) %>%
+  na.omit()
+
+cor(stimuli_stats$average_phoneme_surprisal, stimuli_stats$syllable_freq, method = 'pearson')
+plot(stimuli_stats$average_phoneme_surprisal, stimuli_stats$syllable_freq))
+
+#so this correlation seems to be driven by a few items, 
 ```
