@@ -210,7 +210,7 @@ stimuli_stats = stimuli_stats %>%
   na.omit()
 
 cor(stimuli_stats$average_phoneme_surprisal, stimuli_stats$syllable_freq, method = 'pearson')
-plot(stimuli_stats$average_phoneme_surprisal, stimuli_stats$syllable_freq))
+plot(stimuli_stats$average_phoneme_surprisal, stimuli_stats$syllable_freq)
 
 #so this correlation seems to be driven by a few items, 
 ```
