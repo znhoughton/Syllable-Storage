@@ -29,6 +29,9 @@ r_to_py(list_of_words)
 Now let's get the lexical frequencies. Note that this will only work if you have downloaded the google 1-grams corpus, which I will not be including in the github due to its size and potential copyright issues.
 
 ```{python}
+
+from zs import ZS
+
 def get_lexical_freq(target_word, match_count = True):
     z_1gram = ZS("D:\\PhD Stuff\\Linguistics Stuff\\Google NGRAMS\\google-books-eng-us-all-20120701-1gram.zs")
 
@@ -51,14 +54,33 @@ def get_lexical_freq(target_word, match_count = True):
     else:
         return(volume_count)
 
+def get_corpus_size():
+    z_1gram = ZS("D:\\PhD Stuff\\Linguistics Stuff\\Google NGRAMS\\google-books-eng-us-all-20120701-1gram.zs")
+    
+    corpus_size = 0
+    
+    for i,record in enumerate(z_1gram):
+        if i % 20000000 == 0 : #progress bar
+            print(record.decode('utf-8'))
+        word_decoded = record.decode('utf-8')
+        #print(word_decoded) #for debugging
+        word_split = word_decoded.split('\t')
+        corpus_size += int(word_split[2])
+    return(corpus_size)
 
+#one_gram_corpus_size = get_corpus_size()
+#print(one_gram_corpus_size)
+#1-gram corpus size is 1064909866902
 #get_lexical_freq('cantelope') 
 ```
+
+The size of our corpus is:
 
 Now we simply apply this function to our dataframe:
 
 ```{python}
 df = r['list_of_words']
+one_gram_corpus_size = 1064909866902
 
 df['frequency'] = df['words'].apply(get_lexical_freq)
 ```
