@@ -40,6 +40,8 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True): #IMPORTANT NOTE!!
                                                     #THIS WILL BREAK FOR NON CVC SYLLABLE WORDS
     phoneme_surprisal = []
     
+    
+    
     #for inner_list in arpabet.values(): 
       #if inner_list[0][0] == phoneme:
         #count += 1
@@ -47,8 +49,12 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True): #IMPORTANT NOTE!!
     #count = sum(1 for inner_list in arpabet.values() if inner_list[0][0] == phoneme)
     
     if translate_to_arpabet:
-      word_arpabet = arpabet[word]
-      word_arpabet = word_arpabet[0]
+      word = word.lower()
+      if word == 'fib':
+        word_arpabet = ['F', 'IH1', 'B']
+      else:
+        word_arpabet = arpabet[word]
+        word_arpabet = word_arpabet[0]
     else:
       word_arpabet = word
       #word_i_minus_one = word[-1]
@@ -67,8 +73,9 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True): #IMPORTANT NOTE!!
         cohorti_minus_one_num = sum(1 for inner_list in arpabet.values() if inner_list[0][:len(cohorti_minus_one)] == cohorti_minus_one)
         phoneme_surprisal.extend([cohorti_num, cohorti_minus_one_num])
    
-   
-   
+    
+    if any(num == 0 for num in phoneme_surprisal):
+        print(word_arpabet)
    
    
     phoneme1_surprisal = phoneme_surprisal[0] / phoneme_surprisal[1]
@@ -77,8 +84,40 @@ def get_phoneme_surprisal(word, translate_to_arpabet = True): #IMPORTANT NOTE!!
     
     return [phoneme1_surprisal, phoneme2_surprisal, phoneme3_surprisal] #these are not logged, we'll do that later
 
-test = get_phoneme_surprisal('cat')        
-print(test)
+#test = get_phoneme_surprisal('cat')        
+#print(test)
+```
+
+Now we get surprisal estimates for our experimental stimuli:
+
+```{r}
+real_list_of_words = read_csv('../Experiment/experimental_conditions.csv') %>%
+  filter(Condition == 'Real')
+
+nonce_list_of_words = read_csv('../Experiment/experimental_conditions.csv') %>%
+  filter(Condition == 'Nonce')
+
+#r_to_py(real_list_of_words)
+#r_to_py(nonce_list_of_words)
+```
+
+```{python}
+import pandas as pd
+df_real = r['real_list_of_words']
+df_nonce = r['nonce_list_of_words'] 
+
+df_nonce['Arpabet'] = df_nonce['Arpabet'].str.split().apply(list)
+
+result_df = pd.DataFrame(df_real['Words'].apply(get_phoneme_surprisal).tolist(), 
+                          columns=['phoneme1_surprisal', 'phoneme2_surprisal', 'phoneme3_surprisal'])
+                          
+df = pd.concat([df_real, result_df], axis=1)
+
+result_df_nonce = pd.DataFrame(df_nonce['Arpabet'].apply(get_phoneme_surprisal, translate_to_arpabet = False).tolist(), 
+                          columns=['phoneme1_surprisal', 'phoneme2_surprisal', 'phoneme3_surprisal'])
+df_result_nonce = pd.concat([df_nonce, result_df_nonce], axis=1)
+
+
 ```
 
 ## Syllable Counts
