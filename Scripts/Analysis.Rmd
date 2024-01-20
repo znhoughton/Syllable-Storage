@@ -1,0 +1,90 @@
+---
+title: "Analysis"
+author: "Zachary Houghton"
+date: "2024-01-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(brms)
+library(data.table)
+```
+
+## Preprocessing and Analysis
+
+```{r}
+data = read_csv('../Data/Database_AllParticipants_syllable_storage_355928_2024-01-19_19h23.45_b9e68166-5665-4c6d-900b-d033900d1ab0.csv') 
+
+data_analysis = data %>%
+  mutate(resp = ifelse(!is.na(textbox.text), textbox.text, ifelse(!is.na(textbox_2.text), textbox_2.text, ifelse(!is.na(textbox_3.text), textbox_3.text, NA)))) %>%
+  select(session, Phoneme1Surprisal, Phoneme2Surprisal, Phoneme3Surprisal, LexicalFrequency, Condition, NoiseLevel, `__participant`, Words, resp) %>%
+  rename(participant = `__participant`) %>%
+  rename(item = Words) %>%
+  na.omit()
+
+data_analysis$item = tolower(data_analysis$item)
+#what do we need for the j-factor calculations? dictionary calculating, for each participant, the probability of each phoneme being incorrect (e.g., for the participant)
+
+substr(data_analysis$item, 1, 1)
+
+data_analysis_split = as.data.frame(do.call(rbind, strsplit(data_analysis$item, "")))
+  
+
+#write_csv(data_analysis, '../Data/santiagos_data.csv')
+
+df = data_analysis
+
+calculate_letter_percentages = function(df) {
+  all_actual_words = unlist(strsplit(as.character(df$item), ""))
+  all_participant_guesses = unlist(strsplit(as.character(df$resp), ""))
+  
+  # Create a data frame to store the count of correct and total guesses for each letter
+  letter_counts = data.frame(letter = unique(all_actual_words),
+                               correct_count = 0,
+                               total_count = 0)
+  
+  # Calculate the count of correct and total guesses for each letter
+  for (i in 1:length(all_actual_words)) {
+    letter = all_actual_words[i]
+    if (letter == all_participant_guesses[i]) {
+      letter_counts[letter_counts$letter == letter, "correct_count"] = letter_counts[letter_counts$letter == letter, "correct_count"] + 1
+    }
+    letter_counts[letter_counts$letter == letter, "total_count"] = letter_counts[letter_counts$letter == letter, "total_count"] + 1
+  }
+  
+  # Calculate the letter-wise percentages of correct guesses
+  letter_counts$percentage_correct = (letter_counts$correct_count / letter_counts$total_count) * 100
+  
+  return(letter_counts)
+}
+
+letter_percentages = calculate_letter_percentages(df)
+
+first_letters = substr(df$item, 1, 1)
+second_letters = substr(df$item, 2, 2)
+third_letters = substr(df$item, 3, 3)
+
+# Create a new column "percentage_for_first_letter" with percentages for the first letter in each word
+df$percentage_first_letter = sapply(first_letters, function(letter) {
+  letter_percentages$percentage_correct[letter_percentages$letter == letter]
+})
+
+df$percentage_second_letter = sapply(second_letters, function(letter) {
+  letter_percentages$percentage_correct[letter_percentages$letter == letter]
+})
+
+df$percentage_third_letter =sapply(third_letters, function(letter) {
+  letter_percentages$percentage_correct[letter_percentages$letter == letter]
+})
+
+# Print the result
+print(df)
+```
+
+If we want to preserver positional information we can do this:
+
+```{r}
+#not sure if we want to do this
+```
