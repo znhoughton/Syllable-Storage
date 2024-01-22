@@ -88,3 +88,5 @@ If we want to preserver positional information we can do this:
 ```{r}
 #not sure if we want to do this
 ```
+
+<!--# to-do: change analysis to arpabet instead of orthography, for real words can access it from dictionary, for nonce words we already have arpabet, for human responses that'll be the tricky part. Maybe can make a key or something -->
