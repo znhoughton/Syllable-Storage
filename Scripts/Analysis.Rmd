@@ -10,9 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(brms)
 library(data.table)
+library(phonics)
+library(httr)
 ```
 
 ## Preprocessing and Analysis
+
+Some pre-processing:
 
 ```{r}
 data = read_csv('../Data/Database_AllParticipants_syllable_storage_355928_2024-01-19_19h23.45_b9e68166-5665-4c6d-900b-d033900d1ab0.csv') 
@@ -27,60 +31,52 @@ data_analysis = data %>%
 data_analysis$item = tolower(data_analysis$item)
 #what do we need for the j-factor calculations? dictionary calculating, for each participant, the probability of each phoneme being incorrect (e.g., for the participant)
 
-substr(data_analysis$item, 1, 1)
+```
 
-data_analysis_split = as.data.frame(do.call(rbind, strsplit(data_analysis$item, "")))
-  
+Next, let's convert both participants' responses, and our words/non-words to ARPABET:
 
-#write_csv(data_analysis, '../Data/santiagos_data.csv')
+```{r}
+data_analysis = data_analysis %>%
+  mutate(item_arpabet = phonics(item, method = 'soundex')) %>%
+  mutate(resp_arpabet = phonics(resp, method = 'soundex'))
 
-df = data_analysis
+```
 
-calculate_letter_percentages = function(df) {
-  all_actual_words = unlist(strsplit(as.character(df$item), ""))
-  all_participant_guesses = unlist(strsplit(as.character(df$resp), ""))
-  
-  # Create a data frame to store the count of correct and total guesses for each letter
-  letter_counts = data.frame(letter = unique(all_actual_words),
-                               correct_count = 0,
-                               total_count = 0)
-  
-  # Calculate the count of correct and total guesses for each letter
-  for (i in 1:length(all_actual_words)) {
-    letter = all_actual_words[i]
-    if (letter == all_participant_guesses[i]) {
-      letter_counts[letter_counts$letter == letter, "correct_count"] = letter_counts[letter_counts$letter == letter, "correct_count"] + 1
-    }
-    letter_counts[letter_counts$letter == letter, "total_count"] = letter_counts[letter_counts$letter == letter, "total_count"] + 1
-  }
-  
-  # Calculate the letter-wise percentages of correct guesses
-  letter_counts$percentage_correct = (letter_counts$correct_count / letter_counts$total_count) * 100
-  
-  return(letter_counts)
+```{r}
+extract_letter_pairs <- function(word1, word2) {
+  letters1 <- unlist(strsplit(as.character(word1), ""))
+  letters2 <- unlist(strsplit(as.character(word2), ""))
+  min_length <- min(length(letters1), length(letters2))
+  pairs <- paste(letters1[1:min_length], letters2[1:min_length], sep = ",")
+  return(pairs)
 }
 
-letter_percentages = calculate_letter_percentages(df)
+# Apply the function to the dataframe and create a new column
+data_analysis$letter_pairs <- mapply(extract_letter_pairs, data_analysis$item, data_analysis$resp)
 
-first_letters = substr(df$item, 1, 1)
-second_letters = substr(df$item, 2, 2)
-third_letters = substr(df$item, 3, 3)
+new_df <- data_analysis %>%
+  unnest(letter_pairs) %>%
+  mutate(letter = sapply(strsplit(letter_pairs, ","), `[`, 1)) %>%
+  separate(letter_pairs, into = c('target_phoneme', 'response_phoneme'), sep = ',') %>%
+  mutate(correct = ifelse(target_phoneme == response_phoneme, 1, 0)) %>%
+  group_by(participant, letter) %>%
+  summarize(total = n(), total_correct = sum(correct), perc = total_correct/total)
 
-# Create a new column "percentage_for_first_letter" with percentages for the first letter in each word
-df$percentage_first_letter = sapply(first_letters, function(letter) {
-  letter_percentages$percentage_correct[letter_percentages$letter == letter]
-})
 
-df$percentage_second_letter = sapply(second_letters, function(letter) {
-  letter_percentages$percentage_correct[letter_percentages$letter == letter]
-})
+data_analysis = data_analysis %>%
+  mutate(first_letter = substr(item, 1, 1)) %>%
+  mutate(second_letter = substr(item, 2, 2)) %>%
+  mutate(third_letter = substr(item, 3, 3)) %>%
+  left_join(new_df, by = c('first_letter' = 'letter', 'participant')) %>%
+  rename_with(~ paste0(., "_letter1"), total:perc) %>%
+  left_join(new_df, by = c('second_letter' = 'letter', 'participant')) %>%
+  rename_with(~ paste0(., "_letter2"), total:perc) %>%
+  left_join(new_df, by = c('third_letter' = 'letter', 'participant')) %>%
+  rename_with(~ paste0(., "_letter3"), total:perc)
 
-df$percentage_third_letter =sapply(third_letters, function(letter) {
-  letter_percentages$percentage_correct[letter_percentages$letter == letter]
-})
-
-# Print the result
-print(df)
+data_analysis = data_analysis %>%
+  mutate(resp_word_correct = ifelse(item == resp, 1, 0)) %>%
+  select(-letter_pairs)
 ```
 
 If we want to preserver positional information we can do this:
