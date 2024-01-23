@@ -12,6 +12,8 @@ library(brms)
 library(data.table)
 library(phonics)
 library(httr)
+library(rvest)
+
 ```
 
 ## Preprocessing and Analysis
@@ -36,10 +38,74 @@ data_analysis$item = tolower(data_analysis$item)
 Next, let's convert both participants' responses, and our words/non-words to ARPABET:
 
 ```{r}
-data_analysis = data_analysis %>%
-  mutate(item_arpabet = phonics(item, method = 'soundex')) %>%
-  mutate(resp_arpabet = phonics(resp, method = 'soundex'))
+items = data_analysis$item
+resps = data_analysis$resp
 
+write.table(items, '../Data/items.txt', col.names = F, row.names = F)
+write.table(resps, '../Data/responses.txt', col.names = F, row.names = F)
+
+url = 'http://www.speech.cs.cmu.edu/cgi-bin/tools/logios/lextool2.pl'
+
+form_data = list(
+  wordfile = upload_file('../Data/items.txt')
+)
+
+response = POST(url, body = form_data)
+
+
+
+result = content(response, as = 'text')
+print(result)
+
+parsed_html <- read_html(result)
+comments <- html_nodes(parsed_html, xpath = "//comment()")
+
+# Convert comments to a character vector
+comment_text <- as.character(comments)
+
+pattern <- "DICT\\s+(\\w+)"
+
+dict_url = trimws(gsub("<!-- DICT (.*?) -->", "\\1", comment_text))
+  
+words = read.csv(url(dict_url), header = F) 
+colnames(words) = 'item_arpabet'
+words = words %>%
+  separate(item_arpabet, into = c('item', 'item_arpabet'), sep = '^\\S*\\K')
+
+form_data = list(
+  wordfile = upload_file('../Data/responses.txt')
+)
+
+response = POST(url, body = form_data)
+
+
+
+result = content(response, as = 'text')
+print(result)
+
+parsed_html <- read_html(result)
+comments <- html_nodes(parsed_html, xpath = "//comment()")
+
+# Convert comments to a character vector
+comment_text <- as.character(comments)
+
+pattern <- "DICT\\s+(\\w+)"
+
+dict_url = trimws(gsub("<!-- DICT (.*?) -->", "\\1", comment_text))
+  
+responses = read.csv(url(dict_url), header = F) 
+colnames(responses) = 'resp_arpabet'
+responses = responses %>%
+  separate(resp_arpabet, into = c('resp', 'resp_arpabet'), sep = '^\\S*\\K')
+
+words$item = tolower(words$item)
+responses$resp = tolower(responses$resp)
+
+arpabet_symbols = cbind(words, responses) %>%
+  select(-item, -resp)
+
+data_analysis_test = cbind(data_analysis, arpabet_symbols)
+  
 ```
 
 ```{r}
